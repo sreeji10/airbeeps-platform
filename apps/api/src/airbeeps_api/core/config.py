@@ -61,6 +61,18 @@ class Settings(BaseSettings):
     supabase_storage_bucket: str = Field(
         default="datasets", validation_alias="SUPABASE_STORAGE_BUCKET"
     )
+    llm_model: str = Field(default="gpt-4o-mini", validation_alias="LLM_MODEL")
+    llm_provider: str | None = Field(default=None, validation_alias="LLM_PROVIDER")
+    llm_api_key: str | None = Field(default=None, validation_alias="LLM_API_KEY")
+    llm_base_url: str | None = Field(default=None, validation_alias="LLM_BASE_URL")
+    llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0, validation_alias="LLM_TEMPERATURE")
+    chat_system_prompt: str = Field(
+        default="You are Airbeeps, an AI assistant helping users inside their workspace.",
+        validation_alias="CHAT_SYSTEM_PROMPT",
+    )
+    chat_context_window_messages: int = Field(
+        default=20, ge=1, le=200, validation_alias="CHAT_CONTEXT_WINDOW_MESSAGES"
+    )
 
     model_config = SettingsConfigDict(
         env_file=("apps/api/.env", ".env"),

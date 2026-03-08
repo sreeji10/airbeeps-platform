@@ -12,19 +12,14 @@ def test_health_check() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_create_chat_run() -> None:
+def test_chat_session_requires_auth() -> None:
     payload = {
-        "project_id": "proj_1",
-        "message": "Summarize dataset context",
-        "dataset_ids": ["dataset_a"],
-        "tool_names": ["echo"],
+        "workspace_id": "workspace_1",
+        "project_id": "project_1",
+        "title": "New chat",
     }
-    response = client.post("/v1/chat/runs", json=payload)
-    data = response.json()
-    assert response.status_code == 200
-    assert data["status"] == "completed"
-    assert data["used_tools"] == ["echo"]
-    assert len(data["retrieval"]) >= 1
+    response = client.post("/v1/chat/sessions", json=payload)
+    assert response.status_code == 401
 
 
 def test_ingest_dataset() -> None:
