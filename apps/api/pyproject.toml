@@ -1,0 +1,42 @@
+[project]
+name = "api"
+version = "0.1.0"
+description = "Airbeeps backend API service"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "fastapi>=0.135.1",
+    "httpx>=0.28.1",
+    "pydantic-settings>=2.13.1",
+    "structlog>=25.5.0",
+    "uvicorn[standard]>=0.41.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.15.5",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+addopts = "-q --cov=apps/api/src/airbeeps_api --cov=services --cov=libs --cov-report=term-missing"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.uv]
+package = false
