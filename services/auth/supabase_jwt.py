@@ -43,12 +43,10 @@ class SupabaseJwtVerifier:
 
         keys = payload.get("keys", [])
         keys_by_kid = {
-            key["kid"]: key
-            for key in keys
-            if isinstance(key, dict) and "kid" in key and key.get("kty") == "RSA"
+            key["kid"]: key for key in keys if isinstance(key, dict) and "kid" in key
         }
         if not keys_by_kid:
-            raise AuthError("No RSA keys found in Supabase JWKS")
+            raise AuthError("No keys found in Supabase JWKS")
 
         self._cache = JwksCache(
             keys_by_kid=keys_by_kid,
@@ -60,8 +58,11 @@ class SupabaseJwtVerifier:
         try:
             header = jwt.get_unverified_header(token)
             kid = header.get("kid")
+            algorithm = header.get("alg")
             if not isinstance(kid, str):
                 raise AuthError("JWT header missing kid")
+            if not isinstance(algorithm, str):
+                raise AuthError("JWT header missing alg")
 
             jwks = await self._get_jwks()
             key = jwks.get(kid)
@@ -71,7 +72,7 @@ class SupabaseJwtVerifier:
             claims = jwt.decode(
                 token,
                 key=key,
-                algorithms=["RS256"],
+                algorithms=[algorithm],
                 audience=self.settings.supabase_jwt_audience,
                 issuer=self.issuer,
             )

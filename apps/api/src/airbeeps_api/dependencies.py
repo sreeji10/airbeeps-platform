@@ -7,7 +7,6 @@ from services.auth.supabase_jwt import SupabaseJwtVerifier
 from services.ingestion.service import IngestionService, InMemoryIngestionService
 from services.llm.litellm_client import LiteLLMClient
 from services.rag.service import InMemoryRagService, RagService
-from services.runtime.service import RuntimeService, RuntimeServiceImpl
 from services.storage.supabase_storage import SupabaseStorageService
 
 from airbeeps_api.core.config import Settings, get_settings
@@ -16,7 +15,6 @@ from airbeeps_api.core.config import Settings, get_settings
 @dataclass(frozen=True)
 class ServiceContainer:
     settings: Settings
-    runtime: RuntimeService
     rag: RagService
     ingestion: IngestionService
     tools: ToolRegistry
@@ -31,7 +29,6 @@ def get_container() -> ServiceContainer:
     tools = build_default_tool_registry()
     rag_service = InMemoryRagService(default_top_k=settings.rag_top_k)
     ingestion_service = InMemoryIngestionService()
-    runtime_service = RuntimeServiceImpl(rag=rag_service, tools=tools)
     jwt_verifier = SupabaseJwtVerifier(settings=settings)
     storage_service = SupabaseStorageService(settings=settings)
     llm_client = LiteLLMClient(
@@ -43,7 +40,6 @@ def get_container() -> ServiceContainer:
     )
     return ServiceContainer(
         settings=settings,
-        runtime=runtime_service,
         rag=rag_service,
         ingestion=ingestion_service,
         tools=tools,

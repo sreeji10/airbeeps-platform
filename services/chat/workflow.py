@@ -3,13 +3,12 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Literal, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from libs.db.models import Chat, Message, Plan, Project, Run
+from libs.db.models import Chat, Message, Project
 from libs.llm.base import LLMClient, LLMMessage
 from libs.schemas.auth import AuthenticatedUser
 from libs.schemas.chat import (
@@ -22,14 +21,13 @@ from libs.schemas.chat import (
 )
 from services.chat.context import ChatContextBuilder
 from services.platform.service import PlatformService
+from services.runtime.executor import RuntimeExecutor
+from services.runtime.planner import RuntimePlanner
+from services.runtime.service import RuntimeServiceImpl
 
 
 class ChatWorkflowError(Exception):
     pass
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)
 
 
 @dataclass
@@ -94,34 +92,37 @@ class ChatWorkflowService:
             content=request.content,
             created_by=user.user_id,
         )
-        plan = await self._create_plan(chat=chat, user=user, prompt=request.content)
-        run = await self._create_run(chat=chat, plan=plan, prompt=request.content)
-        await self._set_run_state(run=run, plan=plan, status="running")
 
-        try:
-            context_messages = await self._build_context(
-                chat_id=chat.id, workspace_id=workspace_id
-            )
-            assistant_text = await self.llm.complete(context_messages)
-            assistant_message = await self._store_message(
-                chat_id=chat.id,
-                workspace_id=workspace_id,
-                role="assistant",
-                content=assistant_text,
-                created_by=user.user_id,
-            )
-            await self._complete_run(run=run, plan=plan, output_text=assistant_text)
-        except Exception as exc:
-            await self._fail_run(run=run, plan=plan, error=str(exc))
-            raise
+        context_messages = await self._build_context(
+            chat_id=chat.id, workspace_id=workspace_id
+        )
+        runtime = RuntimeServiceImpl(
+            session=self.session,
+            planner=RuntimePlanner(self.llm),
+            executor=RuntimeExecutor(self.llm),
+        )
+        result = await runtime.execute_turn(
+            chat=chat,
+            user=user,
+            user_message=request.content,
+            context_messages=context_messages,
+        )
+
+        assistant_message = await self._store_message(
+            chat_id=chat.id,
+            workspace_id=workspace_id,
+            role="assistant",
+            content=result.response,
+            created_by=user.user_id,
+        )
 
         return ChatTurnResponse(
             chat_id=chat.id,
             user_message=user_message,
             assistant_message=assistant_message,
-            plan_id=plan.id,
-            run_id=run.id,
-            run_status=run.status,
+            plan_id=result.plan_id,
+            run_id=result.run_id,
+            run_status=result.run_status,
         )
 
     async def stream_turn(
@@ -142,41 +143,56 @@ class ChatWorkflowService:
             content=request.content,
             created_by=user.user_id,
         )
-        plan = await self._create_plan(chat=chat, user=user, prompt=request.content)
-        run = await self._create_run(chat=chat, plan=plan, prompt=request.content)
-        await self._set_run_state(run=run, plan=plan, status="running")
 
-        buffered: list[str] = []
-        try:
-            context_messages = await self._build_context(
-                chat_id=chat.id, workspace_id=workspace_id
-            )
-            async for token in self.llm.stream(context_messages):
-                buffered.append(token)
-                yield self._sse_event("token", {"token": token, "run_id": run.id})
+        context_messages = await self._build_context(
+            chat_id=chat.id, workspace_id=workspace_id
+        )
+        runtime = RuntimeServiceImpl(
+            session=self.session,
+            planner=RuntimePlanner(self.llm),
+            executor=RuntimeExecutor(self.llm),
+        )
 
-            assistant_text = "".join(buffered)
-            assistant_message = await self._store_message(
-                chat_id=chat.id,
-                workspace_id=workspace_id,
-                role="assistant",
-                content=assistant_text,
-                created_by=user.user_id,
-            )
-            await self._complete_run(run=run, plan=plan, output_text=assistant_text)
-            yield self._sse_event(
-                "done",
-                {
-                    "chat_id": chat.id,
-                    "run_id": run.id,
-                    "plan_id": plan.id,
-                    "assistant_message_id": assistant_message.id,
-                    "status": run.status,
-                },
-            )
-        except Exception as exc:
-            await self._fail_run(run=run, plan=plan, error=str(exc))
-            yield self._sse_event("error", {"message": str(exc), "run_id": run.id})
+        async for event in runtime.stream_turn(
+            chat=chat,
+            user=user,
+            user_message=request.content,
+            context_messages=context_messages,
+        ):
+            event_type = str(event.get("type", ""))
+            event_data = cast(dict[str, object], event.get("data", {}))
+
+            if event_type == "token":
+                yield self._sse_event("token", event_data)
+                continue
+
+            if event_type == "status":
+                yield self._sse_event("status", event_data)
+                continue
+
+            if event_type == "completed":
+                response_text = str(event_data.get("response", ""))
+                assistant_message = await self._store_message(
+                    chat_id=chat.id,
+                    workspace_id=workspace_id,
+                    role="assistant",
+                    content=response_text,
+                    created_by=user.user_id,
+                )
+                yield self._sse_event(
+                    "done",
+                    {
+                        "chat_id": chat.id,
+                        "run_id": event_data.get("run_id"),
+                        "plan_id": event_data.get("plan_id"),
+                        "assistant_message_id": assistant_message.id,
+                        "status": event_data.get("status", "completed"),
+                    },
+                )
+                continue
+
+            if event_type == "error":
+                yield self._sse_event("error", event_data)
 
     async def _ensure_chat_access(
         self, *, chat_id: str, workspace_id: str, user: AuthenticatedUser
@@ -253,68 +269,6 @@ class ChatWorkflowService:
             created_by=message.created_by,
             created_at=message.created_at.isoformat(),
         )
-
-    async def _create_plan(
-        self, *, chat: Chat, user: AuthenticatedUser, prompt: str
-    ) -> Plan:
-        plan = Plan(
-            workspace_id=chat.workspace_id,
-            project_id=chat.project_id,
-            chat_id=chat.id,
-            status="created",
-            payload={
-                "type": "chat_turn",
-                "steps": ["build_context", "llm_generate", "persist_response"],
-                "prompt": prompt,
-            },
-            created_by=user.user_id,
-        )
-        self.session.add(plan)
-        await self.session.commit()
-        await self.session.refresh(plan)
-        return plan
-
-    async def _create_run(self, *, chat: Chat, plan: Plan, prompt: str) -> Run:
-        run = Run(
-            workspace_id=chat.workspace_id,
-            project_id=chat.project_id,
-            plan_id=plan.id,
-            status="created",
-            input_payload={"chat_id": chat.id, "prompt": prompt},
-            output_payload={},
-            started_at=_utc_now(),
-        )
-        self.session.add(run)
-        await self.session.commit()
-        await self.session.refresh(run)
-        return run
-
-    async def _set_run_state(self, *, run: Run, plan: Plan, status: str) -> None:
-        run.status = status
-        plan.status = status
-        self.session.add(run)
-        self.session.add(plan)
-        await self.session.commit()
-
-    async def _complete_run(self, *, run: Run, plan: Plan, output_text: str) -> None:
-        run.status = "completed"
-        run.output_payload = {"response": output_text}
-        run.completed_at = _utc_now()
-        plan.status = "completed"
-        self.session.add(run)
-        self.session.add(plan)
-        await self.session.commit()
-        await self.session.refresh(run)
-
-    async def _fail_run(self, *, run: Run, plan: Plan, error: str) -> None:
-        run.status = "failed"
-        run.output_payload = {"error": error}
-        run.completed_at = _utc_now()
-        plan.status = "failed"
-        self.session.add(run)
-        self.session.add(plan)
-        await self.session.commit()
-        await self.session.refresh(run)
 
     def _sse_event(self, event: str, payload: dict[str, object]) -> str:
         return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
