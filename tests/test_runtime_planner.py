@@ -2,7 +2,9 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from libs.llm.base import LLMMessage
-from libs.schemas.rag import RetrievedChunk
+from libs.tools.base import Tool, ToolContext, ToolResult
+from libs.tools.registry import ToolRegistry
+from pydantic import BaseModel
 from services.runtime.executor import RuntimeExecutor
 from services.runtime.planner import RuntimePlanner
 
@@ -24,18 +26,27 @@ class FakeLLM:
             yield token
 
 
-class FakeRetrievalTool:
-    async def search(
-        self,
-        *,
-        session: Any,
-        workspace_id: str,
-        project_id: str,
-        query: str,
-        dataset_ids: list[str],
-        top_k: int,
-    ) -> list[RetrievedChunk]:
-        return []
+class EchoInput(BaseModel):
+    text: str = ""
+
+
+async def _echo_handler(payload: Any, context: ToolContext) -> ToolResult:
+    del context
+    text = str(getattr(payload, "text", ""))
+    return ToolResult(content=text, data={"echo": text})
+
+
+def _build_tools() -> ToolRegistry:
+    tools = ToolRegistry()
+    tools.register(
+        Tool(
+            name="echo_tool",
+            description="Echoes input text.",
+            input_model=EchoInput,
+            handler=_echo_handler,
+        )
+    )
+    return tools
 
 
 def test_runtime_planner_parses_json_plan() -> None:
@@ -86,13 +97,14 @@ def test_runtime_executor_builds_final_messages() -> None:
 
     executor = RuntimeExecutor(
         llm=llm,
-        retrieval_tool=FakeRetrievalTool(),  # type: ignore[arg-type]
+        tools=_build_tools(),
     )
     prepared = __import__("asyncio").run(
         executor.prepare(
             session=object(),  # type: ignore[arg-type]
             workspace_id="w1",
             project_id="p1",
+            user_id="u1",
             dataset_ids=[],
             plan=plan,
             context_messages=[{"role": "system", "content": "sys"}],

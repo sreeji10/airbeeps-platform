@@ -5,7 +5,14 @@ from pydantic import BaseModel, Field
 
 class ExecutionPlanStep(BaseModel):
     id: str = Field(min_length=1, max_length=64)
-    kind: Literal["retrieve_context", "analyze", "reason", "respond", "other"] = "other"
+    kind: Literal[
+        "retrieve_context",
+        "analyze",
+        "reason",
+        "tool",
+        "respond",
+        "other",
+    ] = "other"
     description: str = Field(min_length=1, max_length=500)
 
 

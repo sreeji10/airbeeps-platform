@@ -3,6 +3,9 @@ from typing import Any
 
 from libs.llm.base import LLMMessage
 from libs.schemas.rag import RetrievedChunk
+from libs.tools.base import Tool, ToolContext, ToolResult
+from libs.tools.registry import ToolRegistry
+from pydantic import BaseModel, Field
 from libs.schemas.runtime import ExecutionPlan, ExecutionPlanStep
 from services.runtime.executor import RuntimeExecutor
 
@@ -16,32 +19,43 @@ class FakeLLM:
             yield ""
 
 
-class FakeRetrievalTool:
-    async def search(
-        self,
-        *,
-        session: Any,
-        workspace_id: str,
-        project_id: str,
-        query: str,
-        dataset_ids: list[str],
-        top_k: int,
-    ) -> list[RetrievedChunk]:
-        return [
-            RetrievedChunk(
-                dataset_id=dataset_ids[0] if dataset_ids else "d1",
-                chunk_id="c1",
-                score=0.9,
-                content="retrieved context",
-                citation="doc#1",
-            )
-        ]
+class DatasetSearchInput(BaseModel):
+    query: str
+    dataset_ids: list[str] = Field(default_factory=list)
+    top_k: int = 5
+
+
+async def _dataset_search(payload: Any, context: ToolContext) -> ToolResult:
+    request = DatasetSearchInput.model_validate(payload)
+    chunk = RetrievedChunk(
+        dataset_id=request.dataset_ids[0]
+        if request.dataset_ids
+        else context.dataset_ids[0],
+        chunk_id="c1",
+        score=0.9,
+        content="retrieved context",
+        citation="doc#1",
+    )
+    return ToolResult(content="ok", data={"matches": [chunk.model_dump()], "count": 1})
+
+
+def _tools() -> ToolRegistry:
+    tools = ToolRegistry()
+    tools.register(
+        Tool(
+            name="dataset_search",
+            description="search",
+            input_model=DatasetSearchInput,
+            handler=_dataset_search,
+        )
+    )
+    return tools
 
 
 def test_executor_injects_retrieval_context() -> None:
     executor = RuntimeExecutor(
         llm=FakeLLM(),
-        retrieval_tool=FakeRetrievalTool(),  # type: ignore[arg-type]
+        tools=_tools(),
         retrieval_top_k=3,
     )
     plan = ExecutionPlan(
@@ -65,6 +79,7 @@ def test_executor_injects_retrieval_context() -> None:
             session=object(),  # type: ignore[arg-type]
             workspace_id="w1",
             project_id="p1",
+            user_id="u1",
             dataset_ids=["d1"],
             plan=plan,
             context_messages=[{"role": "user", "content": "What is this?"}],

@@ -96,6 +96,7 @@ class RuntimeServiceImpl:
                 session=self.session,
                 workspace_id=chat.workspace_id,
                 project_id=chat.project_id,
+                user_id=user.user_id,
                 dataset_ids=dataset_ids,
                 plan=plan_model,
                 context_messages=context_messages,
@@ -113,6 +114,7 @@ class RuntimeServiceImpl:
                     "retrieved_chunks": [
                         chunk.model_dump() for chunk in preparation.retrieved_chunks
                     ],
+                    "tool_calls": preparation.tool_calls,
                     "intermediate_results": preparation.intermediate_results,
                 },
             )
@@ -123,6 +125,7 @@ class RuntimeServiceImpl:
                 response=response_text,
                 plan=plan_model,
                 intermediate_results=preparation.intermediate_results,
+                tool_calls=preparation.tool_calls,
             )
         except Exception as exc:
             await self._fail_run(run=run, plan=plan, error=str(exc))
@@ -179,6 +182,7 @@ class RuntimeServiceImpl:
                 session=self.session,
                 workspace_id=chat.workspace_id,
                 project_id=chat.project_id,
+                user_id=user.user_id,
                 dataset_ids=dataset_ids,
                 plan=plan_model,
                 context_messages=context_messages,
@@ -204,6 +208,7 @@ class RuntimeServiceImpl:
                     "retrieved_chunks": [
                         chunk.model_dump() for chunk in preparation.retrieved_chunks
                     ],
+                    "tool_calls": preparation.tool_calls,
                     "intermediate_results": preparation.intermediate_results,
                 },
             )

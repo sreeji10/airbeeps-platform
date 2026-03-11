@@ -2,12 +2,13 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from libs.llm.base import LLMClient
-from libs.tools.registry import ToolRegistry, build_default_tool_registry
+from libs.tools.registry import ToolRegistry
 from services.auth.supabase_jwt import SupabaseJwtVerifier
 from services.ingestion.service import IngestionService, SupabaseIngestionService
 from services.llm.litellm_client import LiteLLMClient
 from services.llm.litellm_embedding import LiteLLMEmbeddingClient
 from services.rag.service import PostgresRagService, RagService
+from services.runtime.tools import RuntimeToolsFactory
 from services.storage.supabase_storage import SupabaseStorageService
 
 from airbeeps_api.core.config import Settings, get_settings
@@ -27,7 +28,6 @@ class ServiceContainer:
 @lru_cache(maxsize=1)
 def get_container() -> ServiceContainer:
     settings = get_settings()
-    tools = build_default_tool_registry()
     jwt_verifier = SupabaseJwtVerifier(settings=settings)
     storage_service = SupabaseStorageService(settings=settings)
     llm_client = LiteLLMClient(
@@ -50,6 +50,11 @@ def get_container() -> ServiceContainer:
         chunk_size=settings.rag_chunk_size,
         chunk_overlap=settings.rag_chunk_overlap,
     )
+    tools = RuntimeToolsFactory(
+        rag=rag_service,
+        default_retrieval_top_k=settings.rag_top_k,
+        http_timeout_seconds=settings.runtime_http_timeout_seconds,
+    ).build_registry()
     ingestion_service = SupabaseIngestionService(rag=rag_service)
 
     return ServiceContainer(

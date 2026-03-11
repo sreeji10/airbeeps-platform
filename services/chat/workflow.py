@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from libs.db.models import Chat, Message, Project
 from libs.llm.base import LLMClient, LLMMessage
 from libs.schemas.auth import AuthenticatedUser
+from libs.tools.registry import ToolRegistry
 from libs.schemas.chat import (
     ChatCreateRequest,
     ChatCreateResponse,
@@ -25,7 +26,6 @@ from services.rag.service import RagService
 from services.runtime.executor import RuntimeExecutor
 from services.runtime.planner import RuntimePlanner
 from services.runtime.service import RuntimeServiceImpl
-from services.runtime.tools import RetrievalTool
 
 
 class ChatWorkflowError(Exception):
@@ -37,8 +37,10 @@ class ChatWorkflowService:
     session: AsyncSession
     llm: LLMClient
     rag: RagService
+    tools: ToolRegistry
     context_builder: ChatContextBuilder
     retrieval_top_k: int = 5
+    max_tool_iterations: int = 4
 
     async def create_chat(
         self, request: ChatCreateRequest, user: AuthenticatedUser
@@ -102,11 +104,12 @@ class ChatWorkflowService:
         )
         runtime = RuntimeServiceImpl(
             session=self.session,
-            planner=RuntimePlanner(self.llm),
+            planner=RuntimePlanner(self.llm, tools=self.tools),
             executor=RuntimeExecutor(
                 llm=self.llm,
-                retrieval_tool=RetrievalTool(self.rag),
+                tools=self.tools,
                 retrieval_top_k=self.retrieval_top_k,
+                max_tool_iterations=self.max_tool_iterations,
             ),
         )
         result = await runtime.execute_turn(
@@ -158,11 +161,12 @@ class ChatWorkflowService:
         )
         runtime = RuntimeServiceImpl(
             session=self.session,
-            planner=RuntimePlanner(self.llm),
+            planner=RuntimePlanner(self.llm, tools=self.tools),
             executor=RuntimeExecutor(
                 llm=self.llm,
-                retrieval_tool=RetrievalTool(self.rag),
+                tools=self.tools,
                 retrieval_top_k=self.retrieval_top_k,
+                max_tool_iterations=self.max_tool_iterations,
             ),
         )
 

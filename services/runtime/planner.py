@@ -6,11 +6,13 @@ from dataclasses import dataclass
 
 from libs.llm.base import LLMClient, LLMMessage
 from libs.schemas.runtime import ExecutionPlan, ExecutionPlanStep
+from libs.tools.registry import ToolRegistry
 
 
 @dataclass
 class RuntimePlanner:
     llm: LLMClient
+    tools: ToolRegistry | None = None
 
     async def build_plan(
         self,
@@ -56,8 +58,17 @@ class RuntimePlanner:
             "Create a concise machine-readable execution plan for this user request.\n"
             f"User request: {user_message}\n"
             f"Recent history:\n{history or '- none'}\n"
-            "Use kinds from: retrieve_context, analyze, reason, respond."
+            f"Available tools:\n{self._format_tools()}\n"
+            "Use kinds from: retrieve_context, analyze, reason, tool, respond."
         )
+
+    def _format_tools(self) -> str:
+        if self.tools is None:
+            return "- none"
+        specs = self.tools.list_specs()
+        if not specs:
+            return "- none"
+        return "\n".join(f"- {spec.name}: {spec.description}" for spec in specs)
 
     def _parse_plan(self, raw: str) -> ExecutionPlan | None:
         payload = self._extract_json(raw)

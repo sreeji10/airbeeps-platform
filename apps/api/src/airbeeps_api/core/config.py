@@ -55,6 +55,22 @@ class Settings(BaseSettings):
         le=1000,
         validation_alias=AliasChoices("RAG_CHUNK_OVERLAP", "AIRBEEPS_RAG_CHUNK_OVERLAP"),
     )
+    runtime_tool_max_iterations: int = Field(
+        default=4,
+        ge=1,
+        le=12,
+        validation_alias=AliasChoices(
+            "RUNTIME_TOOL_MAX_ITERATIONS", "AIRBEEPS_RUNTIME_TOOL_MAX_ITERATIONS"
+        ),
+    )
+    runtime_http_timeout_seconds: float = Field(
+        default=8.0,
+        ge=0.5,
+        le=30.0,
+        validation_alias=AliasChoices(
+            "RUNTIME_HTTP_TIMEOUT_SECONDS", "AIRBEEPS_RUNTIME_HTTP_TIMEOUT_SECONDS"
+        ),
+    )
     db_echo: bool = Field(
         default=False, validation_alias=AliasChoices("DB_ECHO", "AIRBEEPS_DB_ECHO")
     )

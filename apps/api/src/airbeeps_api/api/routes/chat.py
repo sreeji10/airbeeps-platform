@@ -28,11 +28,13 @@ def _build_service(
         session=session,
         llm=container.llm,
         rag=container.rag,
+        tools=container.tools,
         context_builder=ChatContextBuilder(
             system_prompt=container.settings.chat_system_prompt,
             max_messages=container.settings.chat_context_window_messages,
         ),
         retrieval_top_k=container.settings.rag_top_k,
+        max_tool_iterations=container.settings.runtime_tool_max_iterations,
     )
 
 

@@ -21,6 +21,7 @@ class RuntimeExecutionResult:
     response: str
     plan: ExecutionPlan
     intermediate_results: list[dict[str, str]]
+    tool_calls: list[dict[str, object]]
 
 
 @dataclass
@@ -29,3 +30,4 @@ class RuntimePreparationResult:
     intermediate_results: list[dict[str, str]]
     final_messages: list[LLMMessage]
     retrieved_chunks: list[RetrievedChunk]
+    tool_calls: list[dict[str, object]]
