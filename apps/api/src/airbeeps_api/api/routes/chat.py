@@ -10,6 +10,7 @@ from libs.schemas.chat import (
 )
 from services.chat.context import ChatContextBuilder
 from services.chat.workflow import ChatWorkflowError, ChatWorkflowService
+from services.usage.service import UsageService
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from airbeeps_api.api.auth import get_current_user
@@ -27,13 +28,21 @@ def _build_service(
     return ChatWorkflowService(
         session=session,
         llm=container.llm,
+        model_router=container.model_router,
         rag=container.rag,
+        memory=container.memory,
+        usage=UsageService(
+            session=session,
+            requests_per_minute=container.settings.workspace_requests_per_minute,
+            estimated_cost_per_1k_tokens=container.settings.llm_estimated_cost_per_1k_tokens,
+        ),
         tools=container.tools,
         context_builder=ChatContextBuilder(
             system_prompt=container.settings.chat_system_prompt,
             max_messages=container.settings.chat_context_window_messages,
         ),
         retrieval_top_k=container.settings.rag_top_k,
+        memory_top_k=container.settings.memory_top_k,
         max_tool_iterations=container.settings.runtime_tool_max_iterations,
     )
 

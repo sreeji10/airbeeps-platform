@@ -27,6 +27,17 @@ class ToolRegistry:
     def list_specs(self) -> list[ToolSpec]:
         return [tool.spec() for tool in self._tools.values()]
 
+    def names(self) -> list[str]:
+        return list(self._tools.keys())
+
+    def filtered(self, enabled_names: list[str]) -> ToolRegistry:
+        subset = ToolRegistry()
+        allowed = set(enabled_names)
+        for name, tool in self._tools.items():
+            if name in allowed:
+                subset.register(tool)
+        return subset
+
     async def execute(
         self,
         *,

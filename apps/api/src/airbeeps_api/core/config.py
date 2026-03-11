@@ -71,6 +71,30 @@ class Settings(BaseSettings):
             "RUNTIME_HTTP_TIMEOUT_SECONDS", "AIRBEEPS_RUNTIME_HTTP_TIMEOUT_SECONDS"
         ),
     )
+    workspace_requests_per_minute: int = Field(
+        default=60,
+        ge=1,
+        le=5000,
+        validation_alias=AliasChoices(
+            "WORKSPACE_REQUESTS_PER_MINUTE",
+            "AIRBEEPS_WORKSPACE_REQUESTS_PER_MINUTE",
+        ),
+    )
+    llm_estimated_cost_per_1k_tokens: float = Field(
+        default=0.001,
+        ge=0.0,
+        le=10.0,
+        validation_alias=AliasChoices(
+            "LLM_ESTIMATED_COST_PER_1K_TOKENS",
+            "AIRBEEPS_LLM_ESTIMATED_COST_PER_1K_TOKENS",
+        ),
+    )
+    memory_top_k: int = Field(
+        default=4,
+        ge=1,
+        le=20,
+        validation_alias=AliasChoices("MEMORY_TOP_K", "AIRBEEPS_MEMORY_TOP_K"),
+    )
     db_echo: bool = Field(
         default=False, validation_alias=AliasChoices("DB_ECHO", "AIRBEEPS_DB_ECHO")
     )

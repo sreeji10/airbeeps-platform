@@ -7,9 +7,11 @@ import httpx
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from libs.schemas.auth import AuthenticatedUser
 from libs.schemas.rag import RetrievedChunk
 from libs.tools.base import Tool, ToolContext, ToolResult
 from libs.tools.registry import ToolRegistry
+from services.memory.service import MemoryService
 from services.rag.service import RagService
 
 
@@ -28,10 +30,17 @@ class HttpRequestInput(BaseModel):
     timeout_seconds: float | None = Field(default=None, ge=0.5, le=30.0)
 
 
+class MemorySearchInput(BaseModel):
+    query: str = Field(min_length=1, max_length=4000)
+    top_k: int = Field(default=4, ge=1, le=20)
+
+
 @dataclass
 class RuntimeToolsFactory:
     rag: RagService
     default_retrieval_top_k: int
+    memory: MemoryService | None = None
+    default_memory_top_k: int = 4
     http_timeout_seconds: float = 8.0
 
     def build_registry(self) -> ToolRegistry:
@@ -57,6 +66,18 @@ class RuntimeToolsFactory:
                 handler=self._http_request_handler,
             )
         )
+        if self.memory is not None:
+            registry.register(
+                Tool(
+                    name="memory_search",
+                    description=(
+                        "Semantic search over persistent agent memory entries "
+                        "stored for this workspace/project."
+                    ),
+                    input_model=MemorySearchInput,
+                    handler=self._memory_search_handler,
+                )
+            )
         return registry
 
     async def _dataset_search_handler(
@@ -128,5 +149,44 @@ class RuntimeToolsFactory:
                 "headers": dict(response.headers),
                 "json": parsed_json if isinstance(parsed_json, (dict, list)) else None,
                 "text": None if parsed_json is not None else response.text[:8000],
+            },
+        )
+
+    async def _memory_search_handler(
+        self,
+        payload: BaseModel,
+        context: ToolContext,
+    ) -> ToolResult:
+        if self.memory is None:
+            return ToolResult(
+                content="Memory service unavailable.", data={"matches": []}
+            )
+        request = cast(MemorySearchInput, payload)
+        session = cast(AsyncSession, context.session)
+        matches = await self.memory.search(
+            session=session,
+            workspace_id=context.workspace_id,
+            project_id=context.project_id,
+            query=request.query,
+            top_k=request.top_k or self.default_memory_top_k,
+            user=AuthenticatedUser(user_id=context.user_id),
+        )
+        content = "\n".join(
+            f"[{index}] {item.content} (score={item.score:.3f})"
+            for index, item in enumerate(matches, start=1)
+        )
+        return ToolResult(
+            content=content or "No relevant memory entries found.",
+            data={
+                "matches": [
+                    {
+                        "id": item.id,
+                        "content": item.content,
+                        "score": item.score,
+                        "metadata": item.metadata,
+                        "created_at": item.created_at,
+                    }
+                    for item in matches
+                ]
             },
         )
