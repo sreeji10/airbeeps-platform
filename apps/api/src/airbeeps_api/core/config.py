@@ -37,7 +37,24 @@ class Settings(BaseSettings):
             "REQUEST_TIMEOUT_SECONDS", "AIRBEEPS_REQUEST_TIMEOUT_SECONDS"
         ),
     )
-    rag_top_k: int = Field(default=5, ge=1, le=20)
+    rag_top_k: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        validation_alias=AliasChoices("RAG_TOP_K", "AIRBEEPS_RAG_TOP_K"),
+    )
+    rag_chunk_size: int = Field(
+        default=1200,
+        ge=200,
+        le=4000,
+        validation_alias=AliasChoices("RAG_CHUNK_SIZE", "AIRBEEPS_RAG_CHUNK_SIZE"),
+    )
+    rag_chunk_overlap: int = Field(
+        default=200,
+        ge=0,
+        le=1000,
+        validation_alias=AliasChoices("RAG_CHUNK_OVERLAP", "AIRBEEPS_RAG_CHUNK_OVERLAP"),
+    )
     db_echo: bool = Field(
         default=False, validation_alias=AliasChoices("DB_ECHO", "AIRBEEPS_DB_ECHO")
     )
@@ -66,6 +83,13 @@ class Settings(BaseSettings):
     llm_api_key: str | None = Field(default=None, validation_alias="LLM_API_KEY")
     llm_base_url: str | None = Field(default=None, validation_alias="LLM_BASE_URL")
     llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0, validation_alias="LLM_TEMPERATURE")
+    embedding_model: str = Field(
+        default="text-embedding-3-small",
+        validation_alias="EMBEDDING_MODEL",
+    )
+    embedding_provider: str | None = Field(default=None, validation_alias="EMBEDDING_PROVIDER")
+    embedding_api_key: str | None = Field(default=None, validation_alias="EMBEDDING_API_KEY")
+    embedding_base_url: str | None = Field(default=None, validation_alias="EMBEDDING_BASE_URL")
     chat_system_prompt: str = Field(
         default="You are Airbeeps, an AI assistant helping users inside their workspace.",
         validation_alias="CHAT_SYSTEM_PROMPT",

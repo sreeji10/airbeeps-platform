@@ -39,6 +39,7 @@ class ChatCreateResponse(BaseModel):
 
 class ChatMessageCreateRequest(BaseModel):
     content: str = Field(min_length=1, max_length=8000)
+    dataset_ids: list[str] = Field(default_factory=list, max_length=100)
 
 
 class ChatMessageRead(BaseModel):

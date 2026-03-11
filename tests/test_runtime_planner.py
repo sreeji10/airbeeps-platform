@@ -1,6 +1,8 @@
 from collections.abc import AsyncIterator
+from typing import Any
 
 from libs.llm.base import LLMMessage
+from libs.schemas.rag import RetrievedChunk
 from services.runtime.executor import RuntimeExecutor
 from services.runtime.planner import RuntimePlanner
 
@@ -20,6 +22,20 @@ class FakeLLM:
         self.calls.append(messages)
         for token in ["hello", " world"]:
             yield token
+
+
+class FakeRetrievalTool:
+    async def search(
+        self,
+        *,
+        session: Any,
+        workspace_id: str,
+        project_id: str,
+        query: str,
+        dataset_ids: list[str],
+        top_k: int,
+    ) -> list[RetrievedChunk]:
+        return []
 
 
 def test_runtime_planner_parses_json_plan() -> None:
@@ -68,9 +84,16 @@ def test_runtime_executor_builds_final_messages() -> None:
         )
     )
 
-    executor = RuntimeExecutor(llm=llm)
+    executor = RuntimeExecutor(
+        llm=llm,
+        retrieval_tool=FakeRetrievalTool(),  # type: ignore[arg-type]
+    )
     prepared = __import__("asyncio").run(
         executor.prepare(
+            session=object(),  # type: ignore[arg-type]
+            workspace_id="w1",
+            project_id="p1",
+            dataset_ids=[],
             plan=plan,
             context_messages=[{"role": "system", "content": "sys"}],
             user_message="Explain this architecture",

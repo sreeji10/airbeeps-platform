@@ -131,6 +131,54 @@ class DatasetFile(Base):
     )
 
 
+class DatasetChunk(Base):
+    __tablename__ = "dataset_chunk"
+    __table_args__ = (
+        UniqueConstraint(
+            "dataset_file_id",
+            "chunk_index",
+            name="uq_dataset_chunk_file_index",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4())
+    )
+    workspace_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("workspace.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    project_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("project.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    dataset_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("dataset.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    dataset_file_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("dataset_file.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(JSONB, nullable=False)
+    chunk_metadata: Mapped[dict[str, object]] = mapped_column(
+        "metadata", JSONB, default=dict, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
 class Chat(Base):
     __tablename__ = "chat"
 

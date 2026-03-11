@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 from libs.llm.base import LLMMessage
+from libs.schemas.rag import RetrievedChunk
 from libs.schemas.runtime import ExecutionPlan
 
 
@@ -27,3 +28,4 @@ class RuntimePreparationResult:
     plan: ExecutionPlan
     intermediate_results: list[dict[str, str]]
     final_messages: list[LLMMessage]
+    retrieved_chunks: list[RetrievedChunk]

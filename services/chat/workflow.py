@@ -21,9 +21,11 @@ from libs.schemas.chat import (
 )
 from services.chat.context import ChatContextBuilder
 from services.platform.service import PlatformService
+from services.rag.service import RagService
 from services.runtime.executor import RuntimeExecutor
 from services.runtime.planner import RuntimePlanner
 from services.runtime.service import RuntimeServiceImpl
+from services.runtime.tools import RetrievalTool
 
 
 class ChatWorkflowError(Exception):
@@ -34,7 +36,9 @@ class ChatWorkflowError(Exception):
 class ChatWorkflowService:
     session: AsyncSession
     llm: LLMClient
+    rag: RagService
     context_builder: ChatContextBuilder
+    retrieval_top_k: int = 5
 
     async def create_chat(
         self, request: ChatCreateRequest, user: AuthenticatedUser
@@ -99,13 +103,18 @@ class ChatWorkflowService:
         runtime = RuntimeServiceImpl(
             session=self.session,
             planner=RuntimePlanner(self.llm),
-            executor=RuntimeExecutor(self.llm),
+            executor=RuntimeExecutor(
+                llm=self.llm,
+                retrieval_tool=RetrievalTool(self.rag),
+                retrieval_top_k=self.retrieval_top_k,
+            ),
         )
         result = await runtime.execute_turn(
             chat=chat,
             user=user,
             user_message=request.content,
             context_messages=context_messages,
+            dataset_ids=request.dataset_ids,
         )
 
         assistant_message = await self._store_message(
@@ -150,7 +159,11 @@ class ChatWorkflowService:
         runtime = RuntimeServiceImpl(
             session=self.session,
             planner=RuntimePlanner(self.llm),
-            executor=RuntimeExecutor(self.llm),
+            executor=RuntimeExecutor(
+                llm=self.llm,
+                retrieval_tool=RetrievalTool(self.rag),
+                retrieval_top_k=self.retrieval_top_k,
+            ),
         )
 
         async for event in runtime.stream_turn(
@@ -158,6 +171,7 @@ class ChatWorkflowService:
             user=user,
             user_message=request.content,
             context_messages=context_messages,
+            dataset_ids=request.dataset_ids,
         ):
             event_type = str(event.get("type", ""))
             event_data = cast(dict[str, object], event.get("data", {}))

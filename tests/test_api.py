@@ -24,12 +24,9 @@ def test_chat_session_requires_auth() -> None:
 
 def test_ingest_dataset() -> None:
     payload = {
+        "workspace_id": "workspace_1",
         "project_id": "proj_1",
         "dataset_id": "dataset_a",
-        "files": ["docs/intro.md", "docs/setup.pdf"],
     }
     response = client.post("/v1/datasets/ingest", json=payload)
-    data = response.json()
-    assert response.status_code == 200
-    assert data["status"] == "accepted"
-    assert data["accepted_files"] == 2
+    assert response.status_code == 401

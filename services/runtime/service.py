@@ -23,6 +23,7 @@ class RuntimeService(Protocol):
         user: AuthenticatedUser,
         user_message: str,
         context_messages: list[LLMMessage],
+        dataset_ids: list[str],
     ) -> RuntimeExecutionResult: ...
 
     async def stream_turn(
@@ -32,6 +33,7 @@ class RuntimeService(Protocol):
         user: AuthenticatedUser,
         user_message: str,
         context_messages: list[LLMMessage],
+        dataset_ids: list[str],
     ) -> AsyncIterator[RuntimeEvent]: ...
 
 
@@ -52,15 +54,26 @@ class RuntimeServiceImpl:
         user: AuthenticatedUser,
         user_message: str,
         context_messages: list[LLMMessage],
+        dataset_ids: list[str],
     ) -> RuntimeExecutionResult:
         plan_model = await self.planner.build_plan(
             user_message=user_message,
             context_messages=context_messages,
         )
         plan = await self._create_plan(
-            chat=chat, user=user, plan_payload=plan_model.model_dump()
+            chat=chat,
+            user=user,
+            plan_payload={
+                **plan_model.model_dump(),
+                "dataset_ids": dataset_ids,
+            },
         )
-        run = await self._create_run(chat=chat, plan=plan, prompt=user_message)
+        run = await self._create_run(
+            chat=chat,
+            plan=plan,
+            prompt=user_message,
+            dataset_ids=dataset_ids,
+        )
         await self._set_run_state(run=run, plan=plan, status="running")
 
         async def on_node_event(
@@ -80,6 +93,10 @@ class RuntimeServiceImpl:
 
         try:
             preparation = await self.executor.prepare(
+                session=self.session,
+                workspace_id=chat.workspace_id,
+                project_id=chat.project_id,
+                dataset_ids=dataset_ids,
                 plan=plan_model,
                 context_messages=context_messages,
                 user_message=user_message,
@@ -92,6 +109,10 @@ class RuntimeServiceImpl:
                 output={
                     "response": response_text,
                     "plan": plan_model.model_dump(),
+                    "dataset_ids": dataset_ids,
+                    "retrieved_chunks": [
+                        chunk.model_dump() for chunk in preparation.retrieved_chunks
+                    ],
                     "intermediate_results": preparation.intermediate_results,
                 },
             )
@@ -114,15 +135,26 @@ class RuntimeServiceImpl:
         user: AuthenticatedUser,
         user_message: str,
         context_messages: list[LLMMessage],
+        dataset_ids: list[str],
     ) -> AsyncIterator[RuntimeEvent]:
         plan_model = await self.planner.build_plan(
             user_message=user_message,
             context_messages=context_messages,
         )
         plan = await self._create_plan(
-            chat=chat, user=user, plan_payload=plan_model.model_dump()
+            chat=chat,
+            user=user,
+            plan_payload={
+                **plan_model.model_dump(),
+                "dataset_ids": dataset_ids,
+            },
         )
-        run = await self._create_run(chat=chat, plan=plan, prompt=user_message)
+        run = await self._create_run(
+            chat=chat,
+            plan=plan,
+            prompt=user_message,
+            dataset_ids=dataset_ids,
+        )
         await self._set_run_state(run=run, plan=plan, status="running")
 
         event_queue: list[RuntimeEvent] = []
@@ -144,6 +176,10 @@ class RuntimeServiceImpl:
 
         try:
             preparation = await self.executor.prepare(
+                session=self.session,
+                workspace_id=chat.workspace_id,
+                project_id=chat.project_id,
+                dataset_ids=dataset_ids,
                 plan=plan_model,
                 context_messages=context_messages,
                 user_message=user_message,
@@ -164,6 +200,10 @@ class RuntimeServiceImpl:
                 output={
                     "response": response_text,
                     "plan": plan_model.model_dump(),
+                    "dataset_ids": dataset_ids,
+                    "retrieved_chunks": [
+                        chunk.model_dump() for chunk in preparation.retrieved_chunks
+                    ],
                     "intermediate_results": preparation.intermediate_results,
                 },
             )
@@ -200,13 +240,24 @@ class RuntimeServiceImpl:
         await self.session.refresh(plan)
         return plan
 
-    async def _create_run(self, *, chat: Chat, plan: Plan, prompt: str) -> Run:
+    async def _create_run(
+        self,
+        *,
+        chat: Chat,
+        plan: Plan,
+        prompt: str,
+        dataset_ids: list[str],
+    ) -> Run:
         run = Run(
             workspace_id=chat.workspace_id,
             project_id=chat.project_id,
             plan_id=plan.id,
             status="created",
-            input_payload={"chat_id": chat.id, "prompt": prompt},
+            input_payload={
+                "chat_id": chat.id,
+                "prompt": prompt,
+                "dataset_ids": dataset_ids,
+            },
             output_payload={"events": []},
             started_at=_utc_now(),
         )
