@@ -1,5 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-const API_PREFIX = process.env.NEXT_PUBLIC_API_PREFIX ?? "/v1";
+import { useAppSettingsStore } from "@/store/app-settings-store";
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -42,36 +41,45 @@ export type ChatHistoryResponse = {
   messages: ChatMessage[];
 };
 
-function buildUrl(path: string, query?: RequestOptions["query"]): string {
-  const url = new URL(`${API_PREFIX}${path}`, API_BASE_URL);
+function normalizePrefix(prefix: string): string {
+  const trimmed = prefix.trim();
+  if (!trimmed) {
+    return "/v1";
+  }
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+function buildProxyPath(path: string, query?: RequestOptions["query"]): string {
+  const { apiPrefix } = useAppSettingsStore.getState();
+  const prefix = normalizePrefix(apiPrefix);
+  const finalPath = path.startsWith("/") ? path : `/${path}`;
+  const search = new URLSearchParams();
   if (query) {
     Object.entries(query).forEach(([key, value]) => {
       if (value !== undefined) {
-        url.searchParams.set(key, String(value));
+        search.set(key, String(value));
       }
     });
   }
-  return url.toString();
+  const queryString = search.toString();
+  return `/api/backend${prefix}${finalPath}${queryString ? `?${queryString}` : ""}`;
 }
 
-function getAuthToken(): string | null {
-  if (typeof window === "undefined") {
-    return null;
+function getProxyHeaders(input?: HeadersInit): Headers {
+  const { apiBaseUrl, authToken } = useAppSettingsStore.getState();
+  const headers = new Headers(input);
+  headers.set("Content-Type", "application/json");
+  headers.set("x-airbeeps-api-base-url", apiBaseUrl);
+  if (authToken.trim()) {
+    headers.set("Authorization", `Bearer ${authToken.trim()}`);
   }
-  return window.localStorage.getItem("airbeeps_auth_token");
+  return headers;
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
-  const token = getAuthToken();
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  const response = await fetch(buildUrl(path, options.query), {
+  const response = await fetch(buildProxyPath(path, options.query), {
     method: options.method ?? "GET",
-    headers,
+    headers: getProxyHeaders(options.headers),
     body: options.body ? JSON.stringify(options.body) : undefined,
     cache: "no-store",
   });
@@ -108,8 +116,10 @@ export const api = {
 };
 
 export function getApiConfig() {
+  const { apiBaseUrl, apiPrefix, authToken } = useAppSettingsStore.getState();
   return {
-    baseUrl: API_BASE_URL,
-    apiPrefix: API_PREFIX,
+    baseUrl: apiBaseUrl,
+    apiPrefix: normalizePrefix(apiPrefix),
+    authToken,
   };
 }

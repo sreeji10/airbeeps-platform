@@ -2,7 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, Send } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { api } from "@/lib/api";
 import { streamChatTurn } from "@/lib/sse";
+import { useAppSettingsStore } from "@/store/app-settings-store";
 import { cn } from "@/lib/utils";
 
 type UiMessage = {
@@ -19,27 +20,32 @@ type UiMessage = {
   status?: "streaming" | "done" | "error";
 };
 
-const DEMO_WORKSPACE_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE_ID ?? "workspace-demo";
-const DEMO_PROJECT_ID = process.env.NEXT_PUBLIC_DEFAULT_PROJECT_ID ?? "project-demo";
-
 function newMessageId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 export function ChatShell() {
+  const workspaceId = useAppSettingsStore((state) => state.workspaceId);
+  const projectId = useAppSettingsStore((state) => state.projectId);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
   const [chatId, setChatId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const sessionMutation = useMutation({
-    mutationFn: () => api.createChatSession(DEMO_WORKSPACE_ID, DEMO_PROJECT_ID, "New Chat"),
+    mutationFn: () => api.createChatSession(workspaceId, projectId, "New Chat"),
   });
 
   const isStreaming = useMemo(
     () => messages.some((message) => message.role === "assistant" && message.status === "streaming"),
     [messages],
   );
+
+  useEffect(() => {
+    abortRef.current?.abort();
+    setMessages([]);
+    setChatId(null);
+  }, [workspaceId, projectId]);
 
   const handleSend = async () => {
     if (!input.trim() || isStreaming) {
@@ -73,7 +79,7 @@ export function ChatShell() {
     try {
       await streamChatTurn({
         chatId: activeChatId,
-        workspaceId: DEMO_WORKSPACE_ID,
+        workspaceId,
         content: prompt,
         signal: abortController.signal,
         onEvent: (event, payload) => {

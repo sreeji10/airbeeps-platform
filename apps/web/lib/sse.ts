@@ -18,16 +18,16 @@ type StreamOptions = {
 };
 
 export async function streamChatTurn(options: StreamOptions): Promise<void> {
-  const { baseUrl, apiPrefix } = getApiConfig();
-  const url = new URL(`${apiPrefix}/chat/sessions/${options.chatId}/messages/stream`, baseUrl);
+  const { baseUrl, apiPrefix, authToken } = getApiConfig();
+  const url = new URL(`/api/backend${apiPrefix}/chat/sessions/${options.chatId}/messages/stream`, window.location.origin);
   url.searchParams.set("workspace_id", options.workspaceId);
 
-  const token = typeof window !== "undefined" ? window.localStorage.getItem("airbeeps_auth_token") : null;
   const response = await fetch(url.toString(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "x-airbeeps-api-base-url": baseUrl,
+      ...(authToken.trim() ? { Authorization: `Bearer ${authToken.trim()}` } : {}),
     },
     body: JSON.stringify({
       content: options.content,
