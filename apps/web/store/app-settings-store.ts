@@ -9,7 +9,18 @@ export type AppSettingsState = {
   workspaceId: string;
   projectId: string;
   authToken: string;
-  setSettings: (patch: Partial<Omit<AppSettingsState, "setSettings" | "resetSettings">>) => void;
+  setAuthToken: (token: string) => void;
+  clearSession: () => void;
+  setWorkspaceId: (workspaceId: string) => void;
+  setProjectId: (projectId: string) => void;
+  setSettings: (
+    patch: Partial<
+      Omit<
+        AppSettingsState,
+        "setSettings" | "resetSettings" | "setAuthToken" | "clearSession" | "setWorkspaceId" | "setProjectId"
+      >
+    >,
+  ) => void;
   resetSettings: () => void;
 };
 
@@ -25,11 +36,11 @@ const DEFAULT_SETTINGS = {
   workspaceId:
     process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE_ID && process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE_ID.trim()
       ? process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE_ID
-      : "workspace-demo",
+      : "",
   projectId:
     process.env.NEXT_PUBLIC_DEFAULT_PROJECT_ID && process.env.NEXT_PUBLIC_DEFAULT_PROJECT_ID.trim()
       ? process.env.NEXT_PUBLIC_DEFAULT_PROJECT_ID
-      : "project-demo",
+      : "",
   authToken: "",
 };
 
@@ -38,6 +49,10 @@ export const useAppSettingsStore = create<AppSettingsState>()(
     (set) => ({
       ...DEFAULT_SETTINGS,
       setSettings: (patch) => set((state) => ({ ...state, ...patch })),
+      setAuthToken: (token) => set({ authToken: token }),
+      clearSession: () => set({ authToken: "", workspaceId: "", projectId: "" }),
+      setWorkspaceId: (workspaceId) => set({ workspaceId }),
+      setProjectId: (projectId) => set({ projectId }),
       resetSettings: () => set(DEFAULT_SETTINGS),
     }),
     {

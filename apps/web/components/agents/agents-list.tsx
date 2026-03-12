@@ -3,17 +3,28 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppSettingsStore } from "@/store/app-settings-store";
 
 export function AgentsList() {
+  const authToken = useAppSettingsStore((state) => state.authToken);
   const workspaceId = useAppSettingsStore((state) => state.workspaceId);
   const projectId = useAppSettingsStore((state) => state.projectId);
   const { data, isLoading, error } = useQuery({
-    queryKey: ["agents", workspaceId, projectId],
+    queryKey: queryKeys.agents.list(workspaceId || "none", projectId || "none"),
     queryFn: () => api.listAgents(workspaceId, projectId),
+    enabled: authToken.trim().length > 0 && workspaceId.trim().length > 0 && projectId.trim().length > 0,
   });
+
+  if (!authToken.trim()) {
+    return <div className="text-sm text-muted-foreground">Sign in to load agents.</div>;
+  }
+
+  if (!workspaceId || !projectId) {
+    return <div className="text-sm text-muted-foreground">Select a workspace and project to view agents.</div>;
+  }
 
   if (isLoading) {
     return <div className="text-sm text-muted-foreground">Loading agents...</div>;

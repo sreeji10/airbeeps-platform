@@ -1,3 +1,7 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 
@@ -6,6 +10,13 @@ type AppShellProps = {
 };
 
 export function AppShell({ children }: AppShellProps) {
+  const pathname = usePathname();
+  const isAuthRoute = pathname.startsWith("/login");
+
+  if (isAuthRoute) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="flex min-h-screen">
       <Sidebar />

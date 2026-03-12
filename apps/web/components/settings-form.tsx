@@ -10,13 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppSettingsStore } from "@/store/app-settings-store";
+import { useToastStore } from "@/store/toast-store";
 
 const settingsSchema = z.object({
   apiBaseUrl: z.url(),
   apiPrefix: z.string().min(1),
-  workspaceId: z.string().min(1),
-  projectId: z.string().min(1),
-  authToken: z.string(),
+  workspaceId: z.string(),
+  projectId: z.string(),
 });
 
 type SettingsValues = z.infer<typeof settingsSchema>;
@@ -26,13 +26,10 @@ export function SettingsForm() {
   const apiPrefix = useAppSettingsStore((state) => state.apiPrefix);
   const workspaceId = useAppSettingsStore((state) => state.workspaceId);
   const projectId = useAppSettingsStore((state) => state.projectId);
-  const authToken = useAppSettingsStore((state) => state.authToken);
   const setSettings = useAppSettingsStore((state) => state.setSettings);
   const resetSettings = useAppSettingsStore((state) => state.resetSettings);
-  const settings = useMemo(
-    () => ({ apiBaseUrl, apiPrefix, workspaceId, projectId, authToken }),
-    [apiBaseUrl, apiPrefix, workspaceId, projectId, authToken],
-  );
+  const pushToast = useToastStore((state) => state.push);
+  const settings = useMemo(() => ({ apiBaseUrl, apiPrefix, workspaceId, projectId }), [apiBaseUrl, apiPrefix, workspaceId, projectId]);
 
   const form = useForm<SettingsValues>({
     resolver: zodResolver(settingsSchema),
@@ -45,10 +42,12 @@ export function SettingsForm() {
 
   const onSubmit = (values: SettingsValues) => {
     setSettings(values);
+    pushToast({ title: "Settings saved" });
   };
 
   const onReset = () => {
     resetSettings();
+    pushToast({ title: "Settings reset" });
   };
 
   return (
@@ -82,10 +81,6 @@ export function SettingsForm() {
           <div className="space-y-2">
             <Label htmlFor="projectId">Default Project ID</Label>
             <Input id="projectId" {...form.register("projectId")} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="authToken">Bearer Token</Label>
-            <Input id="authToken" type="password" autoComplete="off" {...form.register("authToken")} />
           </div>
           <div className="flex gap-2">
             <Button type="submit">Save Settings</Button>

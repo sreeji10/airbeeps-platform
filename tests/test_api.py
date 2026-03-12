@@ -30,3 +30,13 @@ def test_ingest_dataset() -> None:
     }
     response = client.post("/v1/datasets/ingest", json=payload)
     assert response.status_code == 401
+
+
+def test_list_workspaces_requires_auth() -> None:
+    response = client.get("/v1/workspaces")
+    assert response.status_code == 401
+
+
+def test_list_projects_requires_auth() -> None:
+    response = client.get("/v1/projects", params={"workspace_id": "workspace_1"})
+    assert response.status_code == 401

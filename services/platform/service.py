@@ -50,6 +50,18 @@ class PlatformService:
             for item in members
         ]
 
+    async def list_workspaces(self, *, user_id: str) -> list[Workspace]:
+        result = await self.session.execute(
+            select(Workspace)
+            .join(
+                WorkspaceMember,
+                WorkspaceMember.workspace_id == Workspace.id,
+            )
+            .where(WorkspaceMember.user_id == user_id)
+            .order_by(Workspace.created_at.asc())
+        )
+        return list(result.scalars().all())
+
     async def ensure_workspace_access(
         self, *, workspace_id: str, user_id: str
     ) -> WorkspaceMember:
@@ -84,6 +96,15 @@ class PlatformService:
         await self.session.commit()
         await self.session.refresh(project)
         return project
+
+    async def list_projects(self, *, workspace_id: str, user_id: str) -> list[Project]:
+        await self.ensure_workspace_access(workspace_id=workspace_id, user_id=user_id)
+        result = await self.session.execute(
+            select(Project)
+            .where(Project.workspace_id == workspace_id)
+            .order_by(Project.created_at.asc())
+        )
+        return list(result.scalars().all())
 
     async def create_dataset_with_file(
         self, payload: DatasetFileCreate

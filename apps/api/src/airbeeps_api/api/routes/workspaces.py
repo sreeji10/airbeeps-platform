@@ -24,3 +24,21 @@ async def create_workspace(
         created_by=workspace.created_by,
         created_at=workspace.created_at.isoformat(),
     )
+
+
+@router.get("", response_model=list[WorkspaceResponse])
+async def list_workspaces(
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[WorkspaceResponse]:
+    service = PlatformService(session)
+    workspaces = await service.list_workspaces(user_id=user.user_id)
+    return [
+        WorkspaceResponse(
+            id=workspace.id,
+            name=workspace.name,
+            created_by=workspace.created_by,
+            created_at=workspace.created_at.isoformat(),
+        )
+        for workspace in workspaces
+    ]

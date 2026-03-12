@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { api } from "@/lib/api";
 import { streamChatTurn } from "@/lib/sse";
 import { useAppSettingsStore } from "@/store/app-settings-store";
+import { useToastStore } from "@/store/toast-store";
 import { cn } from "@/lib/utils";
 
 type UiMessage = {
@@ -25,8 +26,10 @@ function newMessageId() {
 }
 
 export function ChatShell() {
+  const authToken = useAppSettingsStore((state) => state.authToken);
   const workspaceId = useAppSettingsStore((state) => state.workspaceId);
   const projectId = useAppSettingsStore((state) => state.projectId);
+  const pushToast = useToastStore((state) => state.push);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
   const [chatId, setChatId] = useState<string | null>(null);
@@ -48,7 +51,7 @@ export function ChatShell() {
   }, [workspaceId, projectId]);
 
   const handleSend = async () => {
-    if (!input.trim() || isStreaming) {
+    if (!input.trim() || isStreaming || !authToken.trim() || !workspaceId || !projectId) {
       return;
     }
 
@@ -132,6 +135,7 @@ export function ChatShell() {
       });
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Stream failed";
+      pushToast({ title: "Chat stream failed", description: detail, variant: "error" });
       setMessages((prev) =>
         prev.map((message) =>
           message.id === assistantMessage.id
@@ -156,7 +160,13 @@ export function ChatShell() {
       <CardContent className="flex h-[calc(100%-5rem)] flex-col gap-4">
         <ScrollArea className="flex-1 rounded-lg border bg-background/80 p-4">
           <div className="space-y-3">
-            {messages.length === 0 ? (
+            {!authToken.trim() ? (
+              <p className="text-sm text-muted-foreground">Sign in to start chat sessions.</p>
+            ) : null}
+            {authToken.trim() && (!workspaceId || !projectId) ? (
+              <p className="text-sm text-muted-foreground">Select a workspace and project to chat.</p>
+            ) : null}
+            {messages.length === 0 && authToken.trim() && workspaceId && projectId ? (
               <p className="text-sm text-muted-foreground">Start a conversation with your workspace agent runtime.</p>
             ) : null}
             {messages.map((message) => (
@@ -185,9 +195,12 @@ export function ChatShell() {
                 void handleSend();
               }
             }}
-            disabled={isStreaming}
+            disabled={isStreaming || !authToken.trim() || !workspaceId || !projectId}
           />
-          <Button onClick={() => void handleSend()} disabled={isStreaming || input.trim().length === 0}>
+          <Button
+            onClick={() => void handleSend()}
+            disabled={isStreaming || input.trim().length === 0 || !authToken.trim() || !workspaceId || !projectId}
+          >
             {isStreaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
