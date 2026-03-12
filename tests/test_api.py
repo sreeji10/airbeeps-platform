@@ -40,3 +40,21 @@ def test_list_workspaces_requires_auth() -> None:
 def test_list_projects_requires_auth() -> None:
     response = client.get("/v1/projects", params={"workspace_id": "workspace_1"})
     assert response.status_code == 401
+
+
+def test_list_chat_sessions_requires_auth() -> None:
+    response = client.get(
+        "/v1/chat/sessions",
+        params={"workspace_id": "workspace_1", "project_id": "project_1"},
+    )
+    assert response.status_code == 401
+
+
+def test_list_jobs_requires_auth() -> None:
+    response = client.get("/v1/jobs", params={"workspace_id": "workspace_1"})
+    assert response.status_code == 401
+
+
+def test_list_datasets_requires_auth() -> None:
+    response = client.get("/v1/datasets", params={"workspace_id": "workspace_1"})
+    assert response.status_code == 401

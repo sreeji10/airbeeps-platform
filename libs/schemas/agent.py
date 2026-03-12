@@ -15,6 +15,19 @@ class AgentCreateRequest(BaseModel):
     execution_limits: dict[str, object] = Field(default_factory=dict)
 
 
+class AgentUpdateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=2000)
+    planner_model: str | None = Field(default=None, max_length=255)
+    generation_model: str | None = Field(default=None, max_length=255)
+    fallback_model: str | None = Field(default=None, max_length=255)
+    prompt_template_id: str | None = None
+    enabled_tools: list[str] = Field(default_factory=list, max_length=100)
+    dataset_ids: list[str] = Field(default_factory=list, max_length=100)
+    execution_limits: dict[str, object] = Field(default_factory=dict)
+    status: str = Field(default="active", max_length=32)
+
+
 class AgentRead(BaseModel):
     id: str
     workspace_id: str

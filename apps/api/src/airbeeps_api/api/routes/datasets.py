@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from libs.schemas.auth import AuthenticatedUser
-from libs.schemas.dataset import DatasetUploadResponse
+from libs.schemas.dataset import DatasetRead, DatasetUploadResponse
 from services.platform.service import DatasetFileCreate, PlatformService
 from services.storage.supabase_storage import StorageError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,43 @@ from airbeeps_api.db.session import get_db_session
 from airbeeps_api.dependencies import ServiceContainer, get_container
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
+
+
+@router.get("", response_model=list[DatasetRead])
+async def list_datasets(
+    workspace_id: str,
+    project_id: str | None = None,
+    status: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    sort: str = "desc",
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[DatasetRead]:
+    service = PlatformService(session)
+    bounded_limit = min(max(limit, 1), 200)
+    bounded_offset = max(offset, 0)
+    rows = await service.list_datasets(
+        workspace_id=workspace_id,
+        project_id=project_id,
+        user_id=user.user_id,
+        status=status,
+        limit=bounded_limit,
+        offset=bounded_offset,
+        sort_desc=sort != "asc",
+    )
+    return [
+        DatasetRead(
+            id=row.id,
+            workspace_id=row.workspace_id,
+            project_id=row.project_id,
+            name=row.name,
+            status=row.status,
+            created_by=row.created_by,
+            created_at=row.created_at.isoformat(),
+        )
+        for row in rows
+    ]
 
 
 @router.post("/upload", response_model=DatasetUploadResponse)

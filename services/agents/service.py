@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from libs.db.models import AgentConfig
-from libs.schemas.agent import AgentCreateRequest
+from libs.schemas.agent import AgentCreateRequest, AgentUpdateRequest
 from libs.schemas.auth import AuthenticatedUser
 from services.platform.service import PlatformService
 
@@ -50,20 +50,23 @@ class AgentService:
         workspace_id: str,
         project_id: str,
         user: AuthenticatedUser,
+        include_archived: bool = False,
     ) -> list[AgentConfig]:
         platform = PlatformService(self.session)
         await platform.ensure_workspace_access(
             workspace_id=workspace_id, user_id=user.user_id
         )
-        result = await self.session.execute(
+        query = (
             select(AgentConfig)
             .where(
                 AgentConfig.workspace_id == workspace_id,
                 AgentConfig.project_id == project_id,
-                AgentConfig.status == "active",
             )
             .order_by(AgentConfig.created_at.desc())
         )
+        if not include_archived:
+            query = query.where(AgentConfig.status != "archived")
+        result = await self.session.execute(query)
         return list(result.scalars().all())
 
     async def get_agent(
@@ -84,3 +87,53 @@ class AgentService:
             )
         )
         return result.scalar_one_or_none()
+
+    async def update_agent(
+        self,
+        *,
+        agent_id: str,
+        workspace_id: str,
+        request: AgentUpdateRequest,
+        user: AuthenticatedUser,
+    ) -> AgentConfig | None:
+        row = await self.get_agent(
+            agent_id=agent_id,
+            workspace_id=workspace_id,
+            user=user,
+        )
+        if row is None:
+            return None
+        row.name = request.name
+        row.description = request.description
+        row.planner_model = request.planner_model
+        row.generation_model = request.generation_model
+        row.fallback_model = request.fallback_model
+        row.prompt_template_id = request.prompt_template_id
+        row.enabled_tools = list(request.enabled_tools)
+        row.dataset_ids = list(request.dataset_ids)
+        row.execution_limits = dict(request.execution_limits)
+        row.status = request.status
+        self.session.add(row)
+        await self.session.commit()
+        await self.session.refresh(row)
+        return row
+
+    async def archive_agent(
+        self,
+        *,
+        agent_id: str,
+        workspace_id: str,
+        user: AuthenticatedUser,
+    ) -> AgentConfig | None:
+        row = await self.get_agent(
+            agent_id=agent_id,
+            workspace_id=workspace_id,
+            user=user,
+        )
+        if row is None:
+            return None
+        row.status = "archived"
+        self.session.add(row)
+        await self.session.commit()
+        await self.session.refresh(row)
+        return row

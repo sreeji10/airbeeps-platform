@@ -91,6 +91,38 @@ class ChatWorkflowService:
         messages = await self._load_messages(chat_id=chat_id, workspace_id=workspace_id)
         return ChatHistoryResponse(chat_id=chat_id, messages=messages)
 
+    async def list_chats(
+        self,
+        *,
+        workspace_id: str,
+        project_id: str,
+        user: AuthenticatedUser,
+    ) -> list[ChatCreateResponse]:
+        platform_service = PlatformService(self.session)
+        await platform_service.ensure_workspace_access(
+            workspace_id=workspace_id,
+            user_id=user.user_id,
+        )
+        result = await self.session.execute(
+            select(Chat)
+            .where(
+                Chat.workspace_id == workspace_id,
+                Chat.project_id == project_id,
+            )
+            .order_by(Chat.created_at.desc())
+        )
+        chats = result.scalars().all()
+        return [
+            ChatCreateResponse(
+                chat_id=chat.id,
+                workspace_id=chat.workspace_id,
+                project_id=chat.project_id,
+                title=chat.title,
+                created_at=chat.created_at.isoformat(),
+            )
+            for chat in chats
+        ]
+
     async def execute_turn(
         self,
         *,

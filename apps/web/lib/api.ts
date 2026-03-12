@@ -48,6 +48,10 @@ export type ChatHistoryResponse = {
   messages: ChatMessage[];
 };
 
+export type ChatSessionListResponse = {
+  sessions: ChatSessionResponse[];
+};
+
 export type WorkspaceMembership = {
   workspace_id: string;
   role: string;
@@ -73,6 +77,43 @@ export type ProjectRead = {
   description: string | null;
   created_by: string;
   created_at: string;
+};
+
+export type DatasetRead = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  name: string;
+  status: string;
+  created_by: string;
+  created_at: string;
+};
+
+export type JobRead = {
+  id: string;
+  workspace_id: string;
+  project_id: string | null;
+  kind: string;
+  status: string;
+  payload: Record<string, unknown>;
+  result: Record<string, unknown>;
+  error: string | null;
+  attempt: number;
+  max_attempts: number;
+  run_after: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type UsageSummaryRead = {
+  workspace_id: string;
+  project_id: string | null;
+  request_count: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number;
 };
 
 const workspaceMembershipSchema = z.object({
@@ -141,6 +182,47 @@ const chatHistorySchema = z.object({
   messages: z.array(chatMessageSchema),
 });
 
+const chatSessionListSchema = z.object({
+  sessions: z.array(chatSessionSchema),
+});
+
+const datasetReadSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  project_id: z.string(),
+  name: z.string(),
+  status: z.string(),
+  created_by: z.string(),
+  created_at: z.string(),
+});
+
+const jobReadSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  project_id: z.string().nullable(),
+  kind: z.string(),
+  status: z.string(),
+  payload: z.record(z.string(), z.unknown()),
+  result: z.record(z.string(), z.unknown()),
+  error: z.string().nullable(),
+  attempt: z.number(),
+  max_attempts: z.number(),
+  run_after: z.string(),
+  created_by: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+const usageSummarySchema = z.object({
+  workspace_id: z.string(),
+  project_id: z.string().nullable(),
+  request_count: z.number(),
+  prompt_tokens: z.number(),
+  completion_tokens: z.number(),
+  total_tokens: z.number(),
+  estimated_cost_usd: z.number(),
+});
+
 function buildProxyPath(path: string, query?: RequestOptions["query"]): string {
   const { apiPrefix } = useAppSettingsStore.getState();
   const prefix = normalizeApiPrefix(apiPrefix);
@@ -204,10 +286,19 @@ export const api = {
       query: { workspace_id: workspaceId },
     }, z.array(projectReadSchema));
   },
-  listAgents(workspaceId: string, projectId: string) {
+  listAgents(workspaceId: string, projectId: string, includeArchived = false) {
     return request<AgentRead[]>("/agents", {
-      query: { workspace_id: workspaceId, project_id: projectId },
+      query: { workspace_id: workspaceId, project_id: projectId, include_archived: includeArchived },
     }, z.array(agentReadSchema));
+  },
+  getAgent(agentId: string, workspaceId: string) {
+    return request<AgentRead>(
+      `/agents/${agentId}`,
+      {
+        query: { workspace_id: workspaceId },
+      },
+      agentReadSchema,
+    );
   },
   createAgent(payload: {
     workspace_id: string;
@@ -236,6 +327,62 @@ export const api = {
       agentReadSchema,
     );
   },
+  updateAgent(
+    agentId: string,
+    workspaceId: string,
+    payload: {
+      name: string;
+      description?: string;
+      planner_model?: string | null;
+      generation_model?: string | null;
+      fallback_model?: string | null;
+      prompt_template_id?: string | null;
+      enabled_tools?: string[];
+      dataset_ids?: string[];
+      execution_limits?: Record<string, unknown>;
+      status?: string;
+    },
+  ) {
+    return request<AgentRead>(
+      `/agents/${agentId}`,
+      {
+        method: "PATCH",
+        query: { workspace_id: workspaceId },
+        body: {
+          name: payload.name,
+          description: payload.description ?? null,
+          planner_model: payload.planner_model ?? null,
+          generation_model: payload.generation_model ?? null,
+          fallback_model: payload.fallback_model ?? null,
+          prompt_template_id: payload.prompt_template_id ?? null,
+          enabled_tools: payload.enabled_tools ?? [],
+          dataset_ids: payload.dataset_ids ?? [],
+          execution_limits: payload.execution_limits ?? {},
+          status: payload.status ?? "active",
+        },
+      },
+      agentReadSchema,
+    );
+  },
+  archiveAgent(agentId: string, workspaceId: string) {
+    return request<AgentRead>(
+      `/agents/${agentId}`,
+      {
+        method: "DELETE",
+        query: { workspace_id: workspaceId },
+      },
+      agentReadSchema,
+    );
+  },
+  listChatSessions(workspaceId: string, projectId: string) {
+    return request<ChatSessionListResponse>(
+      "/chat/sessions",
+      {
+        query: { workspace_id: workspaceId, project_id: projectId },
+      },
+      chatSessionListSchema,
+    );
+  },
   createChatSession(workspaceId: string, projectId: string, title?: string) {
     return request<ChatSessionResponse>("/chat/sessions", {
       method: "POST",
@@ -250,6 +397,95 @@ export const api = {
     return request<ChatHistoryResponse>(`/chat/sessions/${chatId}/messages`, {
       query: { workspace_id: workspaceId },
     }, chatHistorySchema);
+  },
+  listDatasets(workspaceId: string, projectId?: string) {
+    return request<DatasetRead[]>(
+      "/datasets",
+      {
+        query: { workspace_id: workspaceId, project_id: projectId },
+      },
+      z.array(datasetReadSchema),
+    );
+  },
+  listDatasetsPage(params: {
+    workspaceId: string;
+    projectId?: string;
+    status?: string;
+    limit: number;
+    offset: number;
+    sort?: "asc" | "desc";
+  }) {
+    return request<DatasetRead[]>(
+      "/datasets",
+      {
+        query: {
+          workspace_id: params.workspaceId,
+          project_id: params.projectId,
+          status: params.status,
+          limit: params.limit,
+          offset: params.offset,
+          sort: params.sort ?? "desc",
+        },
+      },
+      z.array(datasetReadSchema),
+    );
+  },
+  enqueueDatasetIngestion(workspaceId: string, projectId: string, datasetId: string) {
+    return request<JobRead>(
+      "/datasets/ingest/jobs",
+      {
+        method: "POST",
+        body: {
+          workspace_id: workspaceId,
+          project_id: projectId,
+          dataset_id: datasetId,
+        },
+      },
+      jobReadSchema,
+    );
+  },
+  listJobs(workspaceId: string, projectId?: string) {
+    return request<JobRead[]>(
+      "/jobs",
+      {
+        query: { workspace_id: workspaceId, project_id: projectId },
+      },
+      z.array(jobReadSchema),
+    );
+  },
+  listJobsPage(params: {
+    workspaceId: string;
+    projectId?: string;
+    status?: string;
+    kind?: string;
+    limit: number;
+    offset: number;
+    sort?: "asc" | "desc";
+  }) {
+    return request<JobRead[]>(
+      "/jobs",
+      {
+        query: {
+          workspace_id: params.workspaceId,
+          project_id: params.projectId,
+          status: params.status,
+          kind: params.kind,
+          limit: params.limit,
+          offset: params.offset,
+          sort: params.sort ?? "desc",
+        },
+      },
+      z.array(jobReadSchema),
+    );
+  },
+  getUsageSummary(workspaceId: string, projectId?: string) {
+    return request<UsageSummaryRead>(
+      "/usage/summary",
+      {
+        query: { workspace_id: workspaceId, project_id: projectId },
+      },
+      usageSummarySchema,
+    );
   },
 };
 

@@ -6,6 +6,7 @@ from libs.schemas.chat import (
     ChatCreateResponse,
     ChatHistoryResponse,
     ChatMessageCreateRequest,
+    ChatSessionListResponse,
     ChatTurnResponse,
 )
 from services.chat.context import ChatContextBuilder
@@ -61,6 +62,23 @@ async def create_chat_session(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+@router.get("/sessions", response_model=ChatSessionListResponse)
+async def list_chat_sessions(
+    workspace_id: str,
+    project_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+    container: ServiceContainer = Depends(get_container),
+) -> ChatSessionListResponse:
+    service = _build_service(session=session, container=container)
+    sessions = await service.list_chats(
+        workspace_id=workspace_id,
+        project_id=project_id,
+        user=user,
+    )
+    return ChatSessionListResponse(sessions=sessions)
 
 
 @router.get("/sessions/{chat_id}/messages", response_model=ChatHistoryResponse)

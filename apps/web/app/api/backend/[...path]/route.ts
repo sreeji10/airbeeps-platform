@@ -66,10 +66,13 @@ async function proxy(request: NextRequest, params: Promise<{ path: string[] }>) 
       }
     }
 
+    const hasBody = request.method !== "GET" && request.method !== "HEAD";
+    const requestBody = hasBody ? await request.arrayBuffer() : undefined;
+
     const upstream = await fetch(target.toString(), {
       method: request.method,
       headers,
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
+      body: requestBody,
       redirect: "manual",
     });
 

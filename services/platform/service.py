@@ -150,3 +150,30 @@ class PlatformService:
         await self.session.refresh(dataset)
         await self.session.refresh(file_record)
         return dataset, file_record
+
+    async def list_datasets(
+        self,
+        *,
+        workspace_id: str,
+        project_id: str | None,
+        user_id: str,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort_desc: bool = True,
+    ) -> list[Dataset]:
+        await self.ensure_workspace_access(workspace_id=workspace_id, user_id=user_id)
+        query = select(Dataset).where(Dataset.workspace_id == workspace_id)
+        if project_id is not None:
+            query = query.where(Dataset.project_id == project_id)
+        if status is not None:
+            query = query.where(Dataset.status == status)
+        query = (
+            query.order_by(
+                Dataset.created_at.desc() if sort_desc else Dataset.created_at.asc()
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self.session.execute(query)
+        return list(result.scalars().all())

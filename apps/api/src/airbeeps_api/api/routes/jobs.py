@@ -56,3 +56,31 @@ async def get_job(
     if row is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return _to_read(row)
+
+
+@router.get("", response_model=list[JobRead])
+async def list_jobs(
+    workspace_id: str,
+    project_id: str | None = None,
+    status: str | None = None,
+    kind: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    sort: str = "desc",
+    user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[JobRead]:
+    service = JobService(session)
+    bounded_limit = min(max(limit, 1), 200)
+    bounded_offset = max(offset, 0)
+    rows = await service.list_jobs(
+        workspace_id=workspace_id,
+        project_id=project_id,
+        user=user,
+        status=status,
+        kind=kind,
+        limit=bounded_limit,
+        offset=bounded_offset,
+        sort_desc=sort != "asc",
+    )
+    return [_to_read(row) for row in rows]

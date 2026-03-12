@@ -37,6 +37,10 @@ class ChatCreateResponse(BaseModel):
     created_at: str
 
 
+class ChatSessionListResponse(BaseModel):
+    sessions: list[ChatCreateResponse]
+
+
 class ChatMessageCreateRequest(BaseModel):
     content: str = Field(min_length=1, max_length=8000)
     dataset_ids: list[str] = Field(default_factory=list, max_length=100)

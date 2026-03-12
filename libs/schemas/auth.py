@@ -16,3 +16,15 @@ class CurrentUserResponse(BaseModel):
     user_id: str
     email: str | None = None
     workspaces: list[WorkspaceMembership]
+
+
+class AuthLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthLoginResponse(BaseModel):
+    access_token: str
+    refresh_token: str | None = None
+    token_type: str = "bearer"
+    expires_in: int | None = None

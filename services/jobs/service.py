@@ -64,6 +64,42 @@ class JobService:
         )
         return result.scalar_one_or_none()
 
+    async def list_jobs(
+        self,
+        *,
+        workspace_id: str,
+        project_id: str | None,
+        user: AuthenticatedUser,
+        status: str | None = None,
+        kind: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort_desc: bool = True,
+    ) -> list[BackgroundJob]:
+        platform = PlatformService(self.session)
+        await platform.ensure_workspace_access(
+            workspace_id=workspace_id,
+            user_id=user.user_id,
+        )
+        query = select(BackgroundJob).where(BackgroundJob.workspace_id == workspace_id)
+        if project_id is not None:
+            query = query.where(BackgroundJob.project_id == project_id)
+        if status is not None:
+            query = query.where(BackgroundJob.status == status)
+        if kind is not None:
+            query = query.where(BackgroundJob.kind == kind)
+        query = (
+            query.order_by(
+                BackgroundJob.created_at.desc()
+                if sort_desc
+                else BackgroundJob.created_at.asc()
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
     async def claim_next_job(self, *, kinds: list[str]) -> BackgroundJob | None:
         now = _utc_now()
         expiry = now - timedelta(minutes=10)
