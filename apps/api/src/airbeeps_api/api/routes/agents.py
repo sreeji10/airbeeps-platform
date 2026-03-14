@@ -11,6 +11,18 @@ from airbeeps_api.db.session import get_db_session
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 
+def _as_string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
+
+
+def _as_dict(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    return value
+
+
 def _to_read(row: AgentConfig) -> AgentRead:
     return AgentRead(
         id=row.id,
@@ -22,9 +34,9 @@ def _to_read(row: AgentConfig) -> AgentRead:
         generation_model=row.generation_model,
         fallback_model=row.fallback_model,
         prompt_template_id=row.prompt_template_id,
-        enabled_tools=list(row.enabled_tools),
-        dataset_ids=list(row.dataset_ids),
-        execution_limits=dict(row.execution_limits),
+        enabled_tools=_as_string_list(row.enabled_tools),
+        dataset_ids=_as_string_list(row.dataset_ids),
+        execution_limits=_as_dict(row.execution_limits),
         status=row.status,
         created_by=row.created_by,
         created_at=row.created_at.isoformat(),

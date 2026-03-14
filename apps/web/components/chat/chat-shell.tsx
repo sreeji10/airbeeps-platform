@@ -327,6 +327,7 @@ export function ChatShell() {
                 </button>
               ))}
               {sessionsQuery.isLoading ? <p className="px-2 text-xs text-muted-foreground">Loading sessions...</p> : null}
+              {sessionsQuery.isError ? <p className="px-2 text-xs text-destructive">Failed to load sessions.</p> : null}
               {!sessionsQuery.isLoading && sessionRows.length === 0 ? (
                 <p className="px-2 text-xs text-muted-foreground">No chat sessions yet.</p>
               ) : null}
@@ -354,6 +355,7 @@ export function ChatShell() {
             <div className="space-y-3">
               {!canChat ? <p className="text-sm text-muted-foreground">Sign in and select a workspace/project.</p> : null}
               {canChat && historyQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading messages...</p> : null}
+              {canChat && historyQuery.isError ? <p className="text-sm text-destructive">Failed to load selected chat history.</p> : null}
               {messages.length === 0 && canChat && !historyQuery.isLoading ? (
                 <p className="text-sm text-muted-foreground">Start a conversation with your workspace agent runtime.</p>
               ) : null}

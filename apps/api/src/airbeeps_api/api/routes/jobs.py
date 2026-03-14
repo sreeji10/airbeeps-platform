@@ -11,6 +11,12 @@ from airbeeps_api.db.session import get_db_session
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
+def _as_dict(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    return value
+
+
 def _to_read(job: BackgroundJob) -> JobRead:
     return JobRead(
         id=job.id,
@@ -18,8 +24,8 @@ def _to_read(job: BackgroundJob) -> JobRead:
         project_id=job.project_id,
         kind=job.kind,
         status=job.status,
-        payload=dict(job.payload),
-        result=dict(job.result),
+        payload=_as_dict(job.payload),
+        result=_as_dict(job.result),
         error=job.error,
         attempt=job.attempt,
         max_attempts=job.max_attempts,

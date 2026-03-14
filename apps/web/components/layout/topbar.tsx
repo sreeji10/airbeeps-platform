@@ -90,6 +90,7 @@ export function Topbar() {
         <Select
           className="w-48"
           value={workspaceId}
+          disabled={workspacesQuery.isLoading}
           onChange={(event) => {
             setWorkspaceId(event.target.value);
             setProjectId("");
@@ -97,6 +98,8 @@ export function Topbar() {
             void queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(event.target.value, "none") });
           }}
         >
+          {workspacesQuery.isLoading ? <option value="">Loading workspaces...</option> : null}
+          {workspacesQuery.isError ? <option value="">Failed to load workspaces</option> : null}
           {workspaceOptions.length === 0 ? <option value="">No workspace</option> : null}
           {workspaceOptions.map((workspace) => (
             <option key={workspace.id} value={workspace.id}>
@@ -104,7 +107,14 @@ export function Topbar() {
             </option>
           ))}
         </Select>
-        <Select className="w-48" value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+        <Select
+          className="w-48"
+          value={projectId}
+          disabled={projectsQuery.isLoading || !workspaceId}
+          onChange={(event) => setProjectId(event.target.value)}
+        >
+          {projectsQuery.isLoading ? <option value="">Loading projects...</option> : null}
+          {projectsQuery.isError ? <option value="">Failed to load projects</option> : null}
           {projectOptions.length === 0 ? <option value="">No project</option> : null}
           {projectOptions.map((project) => (
             <option key={project.id} value={project.id}>

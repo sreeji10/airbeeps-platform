@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import { RefreshCw } from "lucide-react";
 
 import { api, JobRead } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
@@ -33,6 +34,7 @@ export function RunsTable() {
 
   const [statusFilter, setStatusFilter] = useState("");
   const [kindFilter, setKindFilter] = useState("");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [offset, setOffset] = useState(0);
 
   const jobsQuery = useQuery({
@@ -40,6 +42,7 @@ export function RunsTable() {
       ...queryKeys.jobs.list(workspaceId || "none", projectId || "none"),
       statusFilter || "all",
       kindFilter || "all",
+      sortOrder,
       offset,
       PAGE_SIZE,
     ],
@@ -51,6 +54,7 @@ export function RunsTable() {
         kind: kindFilter || undefined,
         offset,
         limit: PAGE_SIZE,
+        sort: sortOrder,
       }),
     enabled: authToken.trim().length > 0 && workspaceId.trim().length > 0,
   });
@@ -62,6 +66,8 @@ export function RunsTable() {
   });
 
   const rows = useMemo(() => jobsQuery.data ?? [], [jobsQuery.data]);
+  const page = Math.floor(offset / PAGE_SIZE) + 1;
+  const hasNextPage = rows.length === PAGE_SIZE;
 
   const table = useReactTable({
     data: rows,
@@ -112,7 +118,7 @@ export function RunsTable() {
           <CardDescription>Server-filtered and paginated run jobs.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid gap-2 md:grid-cols-[200px_220px_auto]">
+          <div className="grid gap-2 md:grid-cols-[200px_220px_160px_auto]">
             <Select
               value={statusFilter}
               onChange={(event) => {
@@ -135,22 +141,43 @@ export function RunsTable() {
                 setKindFilter(event.target.value);
               }}
             />
+            <Select
+              value={sortOrder}
+              onChange={(event) => {
+                setOffset(0);
+                setSortOrder(event.target.value === "asc" ? "asc" : "desc");
+              }}
+            >
+              <option value="desc">Newest first</option>
+              <option value="asc">Oldest first</option>
+            </Select>
             <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => void jobsQuery.refetch()} disabled={jobsQuery.isFetching}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh
+              </Button>
               <Button variant="outline" onClick={() => setOffset((prev) => Math.max(prev - PAGE_SIZE, 0))} disabled={offset === 0}>
                 Previous
               </Button>
               <Button
                 variant="outline"
                 onClick={() => setOffset((prev) => prev + PAGE_SIZE)}
-                disabled={(jobsQuery.data?.length ?? 0) < PAGE_SIZE}
+                disabled={!hasNextPage}
               >
                 Next
               </Button>
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">Page {page}</p>
 
           {jobsQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading jobs...</p> : null}
-          {jobsQuery.isError ? <p className="text-sm text-destructive">Failed to load jobs.</p> : null}
+          {jobsQuery.isError ? (
+            <p className="text-sm text-destructive">
+              Failed to load jobs.
+              {" "}
+              {jobsQuery.error instanceof Error ? jobsQuery.error.message : ""}
+            </p>
+          ) : null}
           {!jobsQuery.isLoading && !jobsQuery.isError ? (
             <Table>
               <TableHeader>
